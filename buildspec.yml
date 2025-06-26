@@ -1,0 +1,30 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.8
+    commands:
+      - echo Installing dependencies...
+      - yum install jq -y
+  build:
+    commands:
+      - echo Assuming cross-account role in Dev account...
+      - >
+        CREDS=$(aws sts assume-role 
+        --role-arn arn:aws:iam::954976328954:role/DevCrossAccountDeployRole1 
+        --role-session-name deploy-session)
+      - export AWS_ACCESS_KEY_ID=$(echo $CREDS | jq -r '.Credentials.AccessKeyId')
+      - export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | jq -r '.Credentials.SecretAccessKey')
+      - export AWS_SESSION_TOKEN=$(echo $CREDS | jq -r '.Credentials.SessionToken')
+      - echo Sending app.sh to EC2 via SSM...
+      - |
+        aws ssm send-command \
+          --document-name "AWS-RunShellScript" \
+          --instance-ids "i-0c76930cc025c43f3" \
+          --comment "Run deploy script" \
+          --parameters '{"commands":["bash -c '\''$(cat app.sh)'\''"]}' \
+          --region us-east-1
+artifacts:
+  files:
+    - app.sh
